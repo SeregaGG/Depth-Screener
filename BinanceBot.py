@@ -57,7 +57,7 @@ class ReportBot:
                 if self.__users[chat_id]:
                     self.sub_info(chat_id)
             print(self.__users)
-            time.sleep(5)
+            time.sleep(60 * 5)  # 5 min
 
     def sub_info(self, sub_chat_id):
         order_book = self.client.get_order_book(symbol=self.__pair)
