@@ -5,6 +5,8 @@ import telebot
 import pandas as pd
 import datetime
 import threading
+import psycopg2
+from db_settings import settings
 
 
 class ReportBot:
@@ -21,7 +23,6 @@ class ReportBot:
 
         self.client = Client(binance_keys["api"], binance_keys["secret"])
         self.__bot = telebot.TeleBot(bot_api)
-        self.__users = dict()
         self.__task = threading.Thread(target=self.send_info, args=(self.__stop_q,), daemon=True)
         self.__task.start()
 
@@ -53,10 +54,20 @@ class ReportBot:
 
     def send_info(self, in_q: Queue):
         while not self.__stop_q.queue[0]:
-            for chat_id in self.__users:
-                if self.__users[chat_id]:
-                    self.sub_info(chat_id)
-            print(self.__users)
+            connection = psycopg2.connect(user=settings['user'],
+                                          password=settings['password'],
+                                          host=settings['host'],
+                                          port=settings['port'],
+                                          database=settings['database'])
+            cursor = connection.cursor()
+            select_q = f"SELECT * FROM bot_user"
+            cursor.execute(select_q)
+
+            for bot_user in cursor.fetchall():
+                if bot_user[2]:
+                    self.sub_info(bot_user[1])
+            cursor.close()
+            connection.close()
             time.sleep(60 * 5)  # 5 min
 
     def sub_info(self, sub_chat_id):
@@ -89,7 +100,7 @@ class ReportBot:
             self.__bot.send_message(sub_chat_id, 'Ask price ' + found_asks[i][0]
                                     + '\nVolume ' + found_asks[i][1])
 
-        print("bids: ", found_bids)
+        print("Information: ", found_bids)
 
     def __avg_volume(self, dataframe: pd.DataFrame):  # pd.Series
         return dataframe['volume'].sum() / dataframe['volume'].count()
@@ -98,6 +109,7 @@ class ReportBot:
         bids_orders = []
         asks_orders = []
         volume_pos = 1
+
         for order in order_book['bids']:
             if float(order[volume_pos]) > current_avg_vol:
                 bids_orders.append(order)
@@ -110,14 +122,31 @@ class ReportBot:
 
     def bot_commands_init(self):
         @self.__bot.message_handler(commands=['start'])
-        def put_user(message):
-            self.__users[message.chat.id] = True
+        def put_user(message: telebot.types.Message):
+            # self.__users[message.chat.id] = True
+            connection = psycopg2.connect(user=settings['user'],
+                                          password=settings['password'],
+                                          host=settings['host'],
+                                          port=settings['port'],
+                                          database=settings['database'])
+            cursor = connection.cursor()
+            select_q = f"SELECT * FROM bot_user WHERE chat_id = {message.chat.id}"
+            cursor.execute(select_q)
+            if cursor.fetchone() is None:
+                insert_q = """ INSERT INTO bot_user (chat_id, is_sub) VALUES (%s, %s)"""
+                values_tuple = (message.chat.id, True)
+                cursor.execute(insert_q, values_tuple)
+                connection.commit()
+                print("New user added")
+
+            cursor.close()
+            connection.close()
+
             markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
             bot_info_btn = telebot.types.KeyboardButton("About bot.")
             commands_info_btn = telebot.types.KeyboardButton("About commands.")
             markup.add(bot_info_btn, commands_info_btn)
             self.__bot.send_message(message.chat.id, "Hello!", reply_markup=markup)
-            print("add user")
 
         @self.__bot.message_handler(commands=['info'])
         def current_info(message):
@@ -125,7 +154,23 @@ class ReportBot:
 
         @self.__bot.message_handler(commands=['stop'])
         def stop_info(message):
-            self.__users[message.chat.id] = False
+            # self.__users[message.chat.id] = False
+            connection = psycopg2.connect(user=settings['user'],
+                                          password=settings['password'],
+                                          host=settings['host'],
+                                          port=settings['port'],
+                                          database=settings['database'])
+            cursor = connection.cursor()
+            select_q = f"SELECT * FROM bot_user WHERE chat_id = {message.chat.id}"
+            cursor.execute(select_q)
+            if cursor.fetchone() is not None:
+                update_q = f""" UPDATE bot_user set is_sub = False where chat_id = {message.chat.id}"""
+                cursor.execute(update_q)
+                connection.commit()
+                print(f"Sub is stopped by {message.chat.id}")
+
+            cursor.close()
+            connection.close()
 
         @self.__bot.message_handler(content_types=['text'])
         def general_info(message):
@@ -137,8 +182,8 @@ class ReportBot:
                                                               + f"\nВалютная пара - {self.__pair}."
                                                               + "\nИнформация берется с биржи Binance")
             if message.text == "About commands.":
-                self.__bot.send_message(message.chat.id, text="/start - подписывает вас на рассылку с интервалом в 5м."
-                                                              + "/info - сообщает текущее состояние стакана."
+                self.__bot.send_message(message.chat.id, text="/start - подписывает вас на рассылку с интервалом в 5м. "
+                                                              + "/info - сообщает текущее состояние стакана. "
                                                               + "/stop - отменяет рассылку."
                                                               + "\nИнформация берется с биржи Binance")
 
