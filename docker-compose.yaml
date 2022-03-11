@@ -1,0 +1,22 @@
+version: "3"
+
+volumes:
+  postgresdb_volume:
+
+services:
+
+  db:
+    image: postgres
+    container_name: db
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgresdb_volume:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: "postgres"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "MyPass"
+
+  telebinance:
+    build: .
+    depends_on:
+      - db

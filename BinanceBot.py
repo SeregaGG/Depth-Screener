@@ -1,3 +1,4 @@
+import os
 import time
 from queue import Queue
 from binance import Client
@@ -52,7 +53,25 @@ class ReportBot:
     def interval(self, kline_interval):
         self.__kline_interval = kline_interval
 
+    def check_db_connection(self):
+        is_up = False
+        while not is_up:
+            try:
+                connection = psycopg2.connect(user=settings['user'],
+                                              password=settings['password'],
+                                              port=settings['port'],
+                                              host=settings['host'],
+                                              database=settings['database'])
+                connection.close()
+
+            except Exception as err:
+                print(f"Connection error {err}")
+            else:
+                is_up = True
+
     def send_info(self, in_q: Queue):
+        self.check_db_connection()
+        print("Error after check")
         while not self.__stop_q.queue[0]:
             connection = psycopg2.connect(user=settings['user'],
                                           password=settings['password'],
@@ -152,6 +171,25 @@ class ReportBot:
         def current_info(message):
             self.sub_info(message.chat.id)
 
+        @self.__bot.message_handler(commands=['sub'])
+        def subscribe(message):
+            connection = psycopg2.connect(user=settings['user'],
+                                          password=settings['password'],
+                                          host=settings['host'],
+                                          port=settings['port'],
+                                          database=settings['database'])
+            cursor = connection.cursor()
+            select_q = f"SELECT * FROM bot_user WHERE chat_id = {message.chat.id}"
+            cursor.execute(select_q)
+            if cursor.fetchone() is not None:
+                update_q = f""" UPDATE bot_user set is_sub = True where chat_id = {message.chat.id}"""
+                cursor.execute(update_q)
+                connection.commit()
+                print(f"New subscriber added - {message.chat.id}")
+
+            cursor.close()
+            connection.close()
+
         @self.__bot.message_handler(commands=['stop'])
         def stop_info(message):
             # self.__users[message.chat.id] = False
@@ -185,6 +223,7 @@ class ReportBot:
                 self.__bot.send_message(message.chat.id, text="/start - подписывает вас на рассылку с интервалом в 5м. "
                                                               + "/info - сообщает текущее состояние стакана. "
                                                               + "/stop - отменяет рассылку."
+                                                              + "/sub - подписаться самостоятельно."
                                                               + "\nИнформация берется с биржи Binance")
 
     def __del__(self):
