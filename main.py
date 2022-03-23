@@ -1,4 +1,3 @@
-import time
 
 from api_keys import keys
 import BinanceBot

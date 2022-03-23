@@ -2,6 +2,7 @@ version: "3"
 
 volumes:
   postgresdb_volume:
+  logs_volume:
 
 services:
 
@@ -14,9 +15,11 @@ services:
     environment:
       POSTGRES_DB: "postgres"
       POSTGRES_USER: "postgres"
-      POSTGRES_PASSWORD: "MyPass"
+      POSTGRES_PASSWORD: "9fbj5kn"
 
   telebinance:
     build: .
+    volumes:
+      - logs_volume:/usr/src/app/logs
     depends_on:
       - db

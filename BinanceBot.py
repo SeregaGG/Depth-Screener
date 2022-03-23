@@ -1,4 +1,3 @@
-import os
 import time
 from queue import Queue
 from binance import Client
@@ -8,7 +7,7 @@ import datetime
 import threading
 import psycopg2
 from db_settings import settings
-
+from loguru import logger
 
 class ReportBot:
     __UTC_diff = 5
@@ -21,12 +20,12 @@ class ReportBot:
     def __init__(self, binance_keys: dict, bot_api: str, is_daemon=False):
         self.__stop_q.put(False)
         self.__stop_q.put(True)
+        logger.add('logs/logs.log', format='{time} {level} {message}')
 
         self.client = Client(binance_keys["api"], binance_keys["secret"])
         self.__bot = telebot.TeleBot(bot_api)
         self.__task = threading.Thread(target=self.send_info, args=(self.__stop_q,), daemon=True)
         self.__task.start()
-
         self.bot_commands_init()
         if is_daemon:
             self.__task_polling = threading.Thread(target=self.start_daemon_polling, daemon=True)
@@ -53,6 +52,7 @@ class ReportBot:
     def interval(self, kline_interval):
         self.__kline_interval = kline_interval
 
+    @logger.catch
     def check_db_connection(self):
         is_up = False
         while not is_up:
@@ -65,13 +65,14 @@ class ReportBot:
                 connection.close()
 
             except Exception as err:
-                print(f"Connection error {err}")
+                logger.error(f"Connection error {err}")
             else:
                 is_up = True
 
+        logger.info('DataBase is OK!')
+
     def send_info(self, in_q: Queue):
         self.check_db_connection()
-        print("Error after check")
         while not self.__stop_q.queue[0]:
             connection = psycopg2.connect(user=settings['user'],
                                           password=settings['password'],
