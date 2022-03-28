@@ -1,3 +1,4 @@
+import os
 import time
 from queue import Queue
 from binance import Client

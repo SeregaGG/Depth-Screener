@@ -121,4 +121,3 @@ dmypy.json
 api_keys.py
 bot_api.py
 db_settings.py
-docker-compose.yaml

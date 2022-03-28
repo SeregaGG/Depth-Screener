@@ -21,5 +21,12 @@ services:
     build: .
     volumes:
       - ./logs/logs.log:/usr/src/app/logs/logs.log
+    environment:
+      POSTGRES_HOST: "db"
+      POSTGRES_PASSWORD: "9fbj5kn"
+      POSTGRES_USER: "postgres"
+      POSTGRES_DB: "screenerusers"
+      POSTGRES_PORT: "5432"
+
     depends_on:
       - db
