@@ -20,6 +20,6 @@ services:
   telebinance:
     build: .
     volumes:
-      - logs_volume:/usr/src/app/logs
+      - ./logs/logs.log:/usr/src/app/logs/logs.log
     depends_on:
       - db
